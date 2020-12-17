@@ -42,16 +42,64 @@ const getCustomersByLocationId = (locationId) => {
     });
     return myPromise;
   }
+  //helper function getCustomerLogsByCustomerId returns all logs within the date range belonging to 
+  //the customer with the given customerId
+  const getCustomerLogsByCustomerId = (customerId, startDate, endDate) => {
+    const myPromise = new Promise((resolve, reject) => {
+      MongoClient.connect(url, settings, function(err, client) {
+        if(err) {
+          reject(err);
+        } else {
+          const db = client.db(dbName);
+          const collection = db.collection("customerLogs");
+          try {
+            collection.find({customerId}).toArray(function(err, docs) {
+              if(err) {
+                reject(err);
+              } else {
+                let unfilteredLogs = docs;
+                let filteredLogs;
+                try {
+                  let start = new Date(startDate);
+                  let end = new Date(endDate);
+                  filteredLogs = unfilteredLogs.filter(log => {
+                    let date = new Date (log.date);
+                    if(date >= start && date <= end) {
+                      return true;
+                    } else {
+                      return false;
+                    }
+                  });
+                } catch(err) {
+                  reject({error: "Invalid date input given"});
+                }
+                resolve(filteredLogs);
+                client.close();
+              } 
+            });
+          } catch(err) {
+            reject({error: "something went wrong"});
+          }
+        }
+      });
+    });
+    return myPromise;
+  }
   
   // Use db as the mongo connection object
   // Assume req.body contains a locationId, startDate and endDate.
 
   router.get('/', async function(req, res) {
-    console.log("Url", url);
-    const customers = await getCustomersByLocationId("0");
-    const result = "result";
+    const customers = await getCustomersByLocationId(req.body.locationId);
+    let result = [];
+    console.log(req.body.startDate, req.body.endDate, "is the range");
+    for(const customer of customers) {
+      let currentCustomerLogs = await getCustomerLogsByCustomerId(customer.customerId, req.body.startDate, req.body.endDate);
+      result.push(currentCustomerLogs);
+    }
     res.send(result);
   });
+  
   router.post('/opiniionTest', function(req, res) {
     res.send('Finished!');
   });
